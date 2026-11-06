@@ -1,0 +1,71 @@
+{
+	"name": "n8n-nodes-geopulse",
+	"version": "0.1.0",
+	"description": "n8n community node for GeoPulse, the self-hosted location timeline: GPS points, timeline, ingestion, exports, sharing and a polling trigger.",
+	"license": "MIT",
+	"homepage": "https://github.com/FDalCol/n8n-nodes-geopulse",
+	"bugs": {
+		"url": "https://github.com/FDalCol/n8n-nodes-geopulse/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/FDalCol/n8n-nodes-geopulse.git"
+	},
+	"funding": {
+		"type": "buymeacoffee",
+		"url": "https://buymeacoffee.com/FDalCol"
+	},
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n",
+		"geopulse",
+		"gps",
+		"location",
+		"timeline",
+		"self-hosted"
+	],
+	"author": {
+		"name": "FDalCol",
+		"email": "353270041+FDalCol@users.noreply.github.com"
+	},
+	"engines": {
+		"node": ">=18.10"
+	},
+	"main": "index.js",
+	"scripts": {
+		"build": "n8n-node build",
+		"build:watch": "tsc --watch",
+		"dev": "n8n-node dev",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"format": "prettier --write credentials nodes test",
+		"test": "vitest run",
+		"prepublishOnly": "npm run build && npm run lint && npm test"
+	},
+	"files": [
+		"dist",
+		"index.js"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": true,
+		"credentials": [
+			"dist/credentials/GeoPulseApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/GeoPulse/GeoPulse.node.js",
+			"dist/nodes/GeoPulseTrigger/GeoPulseTrigger.node.js"
+		]
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "^0.55.5",
+		"eslint": "^9.39.4",
+		"n8n-workflow": "^2.46.5",
+		"prettier": "^3.8.3",
+		"typescript": "^5.9.3",
+		"vitest": "^5.1.0"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}
