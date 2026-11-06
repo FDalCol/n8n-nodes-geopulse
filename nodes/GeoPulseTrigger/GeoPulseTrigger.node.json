@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-geopulse.geoPulseTrigger",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Data & Storage", "Productivity"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/FDalCol/n8n-nodes-geopulse#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/FDalCol/n8n-nodes-geopulse#readme"
+			}
+		]
+	}
+}
