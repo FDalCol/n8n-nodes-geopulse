@@ -846,3 +846,64 @@ describe('Errors', () => {
 		);
 	});
 });
+
+describe('Security review fixes', () => {
+	it('Custom API Call rejects double-encoded traversal and odd characters', async () => {
+		const s = await server(() => ({ json: {} }));
+		for (const path of [
+			'/api/v1/%252e%252e/admin',
+			'/api/v1/%252f',
+			'/api/v1/x%',
+			'/api/v1/x%zz',
+			'/api/v1/<script>',
+			'/api/v1/x"y',
+		]) {
+			await expect(
+				run(s, { resource: 'customApiCall', operation: 'request', method: 'GET', path }),
+				path,
+			).rejects.toThrow(/not allowed|must not contain/);
+		}
+		expect(s.requests).toHaveLength(0);
+	});
+
+	it('Custom API Call rejects prototype and token-like query parameter names', async () => {
+		const s = await server(() => ({ json: {} }));
+		for (const name of ['__proto__', 'constructor', 'prototype', 'Authorization', 'a b', 'x&y=1']) {
+			await expect(
+				run(s, {
+					resource: 'customApiCall',
+					operation: 'request',
+					method: 'GET',
+					path: '/api/v1/timeline/count',
+					queryParameters: { parameter: [{ name, value: '1' }] },
+				}),
+				name,
+			).rejects.toThrow(/not allowed/);
+		}
+		expect(s.requests).toHaveLength(0);
+		expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+	});
+
+	it('rejects a Limit that is not a positive whole number, also from expressions', async () => {
+		const s = await server(pagedPoints(10));
+		for (const limit of ['abc', 0, -5, 2.5, Number.POSITIVE_INFINITY]) {
+			await expect(
+				run(s, { resource: 'location', operation: 'getPoints', returnAll: false, limit }),
+				String(limit),
+			).rejects.toThrow(/Limit must be a whole number/);
+		}
+		expect(s.requests).toHaveLength(0);
+	});
+
+	it('treats Return All from an expression string as off', async () => {
+		const s = await server(pagedPoints(100));
+		const { items } = await run(s, {
+			resource: 'location',
+			operation: 'getPoints',
+			returnAll: 'false',
+			limit: 5,
+		});
+		expect(items).toHaveLength(5);
+		expect(s.requests).toHaveLength(1);
+	});
+});

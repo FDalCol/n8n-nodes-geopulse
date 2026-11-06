@@ -2,6 +2,7 @@ import type { IDataObject, IExecuteFunctions, INodeExecutionData } from 'n8n-wor
 
 import { optionalUtcIso, toUtcIso } from '../../shared/dates';
 import { resolveTimeZone } from '../../shared/params';
+import { stripPasswords } from '../../shared/security';
 import { geoPulseApiRequest, getBaseUrl } from '../../shared/transport';
 import { asArray, listToItems, objectToItem } from '../../shared/utils';
 
@@ -19,14 +20,9 @@ function shareBaseUrl(list: IDataObject, fallback: string): string {
 	return /^https?:\/\//i.test(configured) ? configured : fallback;
 }
 
-/** Removes any field that could carry a password, whatever the server sends. */
+/** Removes any field that could carry a password, at any depth, whatever the server sends. */
 function withoutSecrets(link: IDataObject): IDataObject {
-	const out: IDataObject = {};
-	for (const [key, value] of Object.entries(link)) {
-		if (/password/i.test(key) && key !== 'has_password') continue;
-		out[key] = value;
-	}
-	return out;
+	return stripPasswords(link);
 }
 
 export async function executeShareLink(

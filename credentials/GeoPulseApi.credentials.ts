@@ -16,7 +16,9 @@ import {
 
 function fullUrl(requestOptions: IHttpRequestOptions): string {
 	const url = requestOptions.url ?? '';
-	if (/^https?:\/\//i.test(url) || !requestOptions.baseURL) return url;
+	// A protocol-relative URL ("//host/...") is absolute for axios: never treat it as relative.
+	if (url.startsWith('//') || url.startsWith('\\')) return 'invalid:';
+	if (/^[a-z][a-z0-9+.-]*:/i.test(url) || !requestOptions.baseURL) return url;
 	return `${requestOptions.baseURL.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
 }
 
@@ -159,6 +161,22 @@ export class GeoPulseApi implements ICredentialType {
 				type: 'responseCode',
 				properties: {
 					value: 308,
+					message:
+						'The server redirected the request: set the final address (e.g. https://…) as Base URL',
+				},
+			},
+			{
+				type: 'responseCode',
+				properties: {
+					value: 300,
+					message:
+						'The server redirected the request: set the final address (e.g. https://…) as Base URL',
+				},
+			},
+			{
+				type: 'responseCode',
+				properties: {
+					value: 303,
 					message:
 						'The server redirected the request: set the final address (e.g. https://…) as Base URL',
 				},

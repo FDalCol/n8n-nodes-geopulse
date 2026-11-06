@@ -44,7 +44,7 @@ export async function executeLocation(
 	const { from, to } = readPeriod(this, i, timeZone, false);
 
 	if (operation === 'getPoints') {
-		const returnAll = this.getNodeParameter('returnAll', i, false) as boolean;
+		const returnAll = this.getNodeParameter('returnAll', i, false) === true;
 		const limit = returnAll ? 0 : Number(this.getNodeParameter('limit', i, 50));
 		const sourceTypes = Array.isArray(options.sourceTypes) ? (options.sourceTypes as string[]) : [];
 		const points = await geoPulsePaginate(

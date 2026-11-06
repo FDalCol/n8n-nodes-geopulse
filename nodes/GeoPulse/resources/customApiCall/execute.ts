@@ -5,7 +5,13 @@ import type {
 	INodeExecutionData,
 } from 'n8n-workflow';
 
-import { normalizeApiPath } from '../../shared/security';
+import {
+	checkQueryParameterName,
+	collectPasswords,
+	normalizeApiPath,
+	redact,
+	stripPasswords,
+} from '../../shared/security';
 import { geoPulseRequest } from '../../shared/transport';
 import { listToItems, objectToItem, parseJsonText } from '../../shared/utils';
 
@@ -45,19 +51,25 @@ export async function executeCustomApiCall(
 	for (const parameter of query.parameter ?? []) {
 		const name = String(parameter.name ?? '').trim();
 		if (name === '') continue;
-		if (/^(api[_-]?key|access[_-]?token|token)$/i.test(name)) {
-			throw new Error(
-				`Query parameter "${name}" is not allowed: the token is sent only in the Authorization header`,
-			);
-		}
-		qs[name] = parameter.value ?? '';
+		checkQueryParameterName(name);
+		Object.defineProperty(qs, name, {
+			value: String(parameter.value ?? ''),
+			enumerable: true,
+			writable: true,
+			configurable: true,
+		});
 	}
 
 	const sendBody = method !== 'GET' && (this.getNodeParameter('sendBody', i, false) as boolean);
 	const body = sendBody ? readBody(this, i) : undefined;
 
-	const response = await geoPulseRequest(this, { method, path, qs, body });
-	const data = response.body;
+	// Passwords in the body (e.g. of a share link) are removed from errors and from the output.
+	const secrets = collectPasswords(body);
+	const response = await geoPulseRequest(this, { method, path, qs, body, secrets });
+	const data =
+		typeof response.body === 'string' && secrets.length
+			? redact(response.body, secrets)
+			: stripPasswords(response.body);
 	if (Array.isArray(data)) {
 		const split = this.getNodeParameter('splitIntoItems', i, true) as boolean;
 		return listToItems(

@@ -149,9 +149,19 @@ export async function fakeHttpRequest(options) {
 		headers,
 		body,
 		redirect: options.disableFollowRedirect ? 'manual' : 'follow',
-		signal: AbortSignal.timeout(options.timeout ?? 30_000),
+		signal: options.abortSignal
+			? AbortSignal.any([options.abortSignal, AbortSignal.timeout(options.timeout ?? 30_000)])
+			: AbortSignal.timeout(options.timeout ?? 30_000),
 	});
 	const buffer = Buffer.from(await response.arrayBuffer());
+	if (options.maxResponseBodyBytes !== undefined && buffer.length > options.maxResponseBodyBytes) {
+		throw Object.assign(
+			new Error('maxContentLength size of ' + options.maxResponseBodyBytes + ' exceeded'),
+			{
+				code: 'ERR_FR_MAX_BODY_LENGTH_EXCEEDED',
+			},
+		);
+	}
 	let parsed;
 	if (options.encoding === 'arraybuffer') {
 		parsed = buffer;
@@ -286,4 +296,24 @@ export async function runCredentialTest(creds) {
 	} catch (error) {
 		return { status: 'Error', message: error.message };
 	}
+}
+
+/** Server that sends the headers and then the body one byte at a time, forever. */
+export async function startTricklingServer() {
+	const server = http.createServer((_req, res) => {
+		res.writeHead(200, { 'content-type': 'application/json' });
+		res.write('{"a":');
+		const timer = setInterval(() => res.write(' '), 50);
+		res.on('close', () => clearInterval(timer));
+	});
+	await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+	const { port } = server.address();
+	return {
+		url: `http://127.0.0.1:${port}`,
+		close: () =>
+			new Promise((resolve) => {
+				server.closeAllConnections();
+				server.close(() => resolve());
+			}),
+	};
 }

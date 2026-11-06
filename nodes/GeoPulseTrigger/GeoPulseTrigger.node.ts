@@ -30,6 +30,9 @@ const SAME_START_MS = 10 * 60_000;
 const SAME_PLACE_METERS = 250;
 const MAX_REMEMBERED = 500;
 const MAX_POINTS_PER_POLL = 5000;
+/** Bounds the per-poll work and the static data when the server returns very large lists. */
+const MAX_CANDIDATES = 1000;
+const MAX_IDS_AT_WATERMARK = 1000;
 
 interface SeenRecord {
 	key: string;
@@ -101,10 +104,16 @@ function isSame(a: SeenRecord, b: SeenRecord): boolean {
 /** Stays (arrived), ended stays (left) or completed trips (new trip) of a timeline. */
 function timelineCandidates(items: TimelineItem[], event: GeoPulseEvent): Candidate[] {
 	const out: Candidate[] = [];
+	// Latest start among the following items, computed once (linear, not quadratic).
+	const latestAfter: number[] = new Array(items.length).fill(-Infinity);
+	for (let index = items.length - 2; index >= 0; index--) {
+		const next = Date.parse(items[index + 1].startTime);
+		latestAfter[index] = Math.max(latestAfter[index + 1], Number.isFinite(next) ? next : -Infinity);
+	}
 	items.forEach((item, index) => {
 		const start = Date.parse(item.startTime);
 		if (!Number.isFinite(start)) return;
-		const hasNext = items.slice(index + 1).some((next) => Date.parse(next.startTime) >= start);
+		const hasNext = latestAfter[index] >= start;
 		const wanted =
 			(event === 'arrivedAtPlace' && item.type === 'stay') ||
 			(event === 'leftPlace' && item.type === 'stay' && hasNext) ||
@@ -358,7 +367,9 @@ export class GeoPulseTrigger implements INodeType {
 				from: new Date(now - lookbackHours * 3_600_000).toISOString(),
 				to: new Date(now).toISOString(),
 			});
-			const candidates = timelineCandidates(normalizeTimeline(timeline), event);
+			const candidates = timelineCandidates(normalizeTimeline(timeline), event).slice(
+				-MAX_CANDIDATES,
+			);
 
 			if (manual) {
 				const matching = candidates.filter((c) => matchesFilter(c.item, filter));
@@ -370,7 +381,7 @@ export class GeoPulseTrigger implements INodeType {
 			if (!state.initialized) {
 				state.seen = candidates.map((c) => c.record).slice(-MAX_REMEMBERED);
 				state.watermark = candidates.length
-					? Math.max(...candidates.map((c) => c.record.start))
+					? candidates.reduce((max, c) => Math.max(max, c.record.start), -Infinity)
 					: null;
 				state.initialized = true;
 				return null;
@@ -424,11 +435,15 @@ export class GeoPulseTrigger implements INodeType {
 				return ts === watermarkMs && !(isFiniteNumber(p.id) && knownIds.has(p.id));
 			});
 			if (fresh.length) {
-				const maxMs = Math.max(...fresh.map((p) => Date.parse(String(p.timestamp))));
+				const maxMs = fresh.reduce(
+					(max, p) => Math.max(max, Date.parse(String(p.timestamp))),
+					-Infinity,
+				);
 				const atMax = fresh.filter((p) => Date.parse(String(p.timestamp)) === maxMs);
 				state.pointWatermark = String(atMax[0].timestamp);
 				const ids = atMax.map((p) => p.id).filter(isFiniteNumber);
-				state.pointIdsAtWatermark = maxMs === watermarkMs ? [...knownIds, ...ids] : ids;
+				const merged = maxMs === watermarkMs ? [...knownIds, ...ids] : ids;
+				state.pointIdsAtWatermark = merged.slice(-MAX_IDS_AT_WATERMARK);
 			}
 			return emit(fresh.filter((p) => matchesFilter(p, filter)));
 		}

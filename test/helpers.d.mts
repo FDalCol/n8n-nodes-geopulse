@@ -83,3 +83,5 @@ export declare function pollContext(options: PollContextOptions): {
 export declare function runCredentialTest(
 	creds: CredentialData,
 ): Promise<{ status: 'OK' | 'Error'; message: string }>;
+
+export declare function startTricklingServer(): Promise<{ url: string; close(): Promise<void> }>;

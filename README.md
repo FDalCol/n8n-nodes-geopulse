@@ -134,8 +134,9 @@ Example output (Arrived At Place):
 
 ## Security
 
-- Use **HTTPS** for the Base URL. Redirects are not followed: if the server redirects, the node stops and asks you to set the final address. Every request times out after 30 seconds.
-- Location data is sensitive. The nodes write no logs. Tokens, share link passwords and query strings are removed from error messages and from `continueOnFail` output.
+- Use **HTTPS** for the Base URL. Redirects are not followed: if the server redirects, the node stops and asks you to set the final address.
+- Every request must complete within 30 seconds; export downloads within 10 minutes. JSON responses are limited to 50 MB and export files to 1 GB.
+- Location data is sensitive. The nodes write no logs. Tokens, share link passwords and query strings are removed from error messages and from `continueOnFail` output. Password fields are removed from the output, also in Custom API Call.
 - Paginated reads stop after 200 pages, so a server that ignores paging cannot loop forever.
 - Share links are **public**: set a password and an expiration whenever possible.
 

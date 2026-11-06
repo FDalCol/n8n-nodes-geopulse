@@ -16,6 +16,47 @@ const EXTENSIONS: Record<string, string> = {
 	csv: 'csv',
 };
 
+/** MIME types GeoPulse uses for exports; anything else is stored as application/octet-stream. */
+const MIME_BY_EXTENSION: Record<string, string> = {
+	zip: 'application/zip',
+	gpx: 'application/gpx+xml',
+	json: 'application/json',
+	geojson: 'application/geo+json',
+	csv: 'text/csv',
+};
+
+/** Keeps a server file name only with a known export extension, never e.g. .html or .svg. */
+export function exportFileInfo(
+	headerName: string | undefined,
+	contentType: string | undefined,
+	fallback: string,
+): { fileName: string; mimeType: string } {
+	let fileName = safeFileName(headerName, fallback);
+	let extension = fileName.includes('.') ? fileName.split('.').pop()!.toLowerCase() : '';
+	if (!(extension in MIME_BY_EXTENSION)) {
+		fileName = fallback;
+		extension = fallback.split('.').pop()!.toLowerCase();
+	}
+	const declared = (contentType ?? '').split(';')[0].trim().toLowerCase();
+	const allowed = new Set([...Object.values(MIME_BY_EXTENSION), 'application/octet-stream']);
+	const mimeType = allowed.has(declared)
+		? declared
+		: (MIME_BY_EXTENSION[extension] ?? 'application/octet-stream');
+	return { fileName, mimeType };
+}
+
+/** Validates the binary property name (no prototype keys, simple characters only). */
+export function checkBinaryPropertyName(value: unknown): string {
+	const name = String(value ?? '').trim() || 'data';
+	if (
+		['__proto__', 'constructor', 'prototype'].includes(name) ||
+		!/^[A-Za-z0-9_.-]{1,100}$/.test(name)
+	) {
+		throw new Error(`"${name}" is not a valid binary property name`);
+	}
+	return name;
+}
+
 function checkJobId(value: unknown): string {
 	const id = String(value ?? '').trim();
 	if (!UUID_PATTERN.test(id))
@@ -43,8 +84,9 @@ async function download(
 	i: number,
 	job?: IDataObject,
 ): Promise<INodeExecutionData[]> {
-	const binaryPropertyName =
-		String(ctx.getNodeParameter('binaryPropertyName', i, 'data')).trim() || 'data';
+	const binaryPropertyName = checkBinaryPropertyName(
+		ctx.getNodeParameter('binaryPropertyName', i, 'data'),
+	);
 	const response = await geoPulseRequest(ctx, {
 		method: 'GET',
 		path: `/api/v1/exports/${jobId}/content`,
@@ -53,18 +95,23 @@ async function download(
 	const buffer = response.body as Buffer;
 	const format = typeof job?.format === 'string' ? job.format : undefined;
 	const fallback = `geopulse-export-${jobId}.${(format && EXTENSIONS[format]) ?? 'bin'}`;
-	const fileName = safeFileName(
+	const { fileName, mimeType } = exportFileInfo(
 		fileNameFromHeader(response.headers['content-disposition']),
+		response.headers['content-type'],
 		fallback,
 	);
-	const mimeType = (response.headers['content-type'] ?? 'application/octet-stream')
-		.split(';')[0]
-		.trim();
 	const binary = await ctx.helpers.prepareBinaryData(buffer, fileName, mimeType);
+	const binaryData: Record<string, typeof binary> = {};
+	Object.defineProperty(binaryData, binaryPropertyName, {
+		value: binary,
+		enumerable: true,
+		writable: true,
+		configurable: true,
+	});
 	return [
 		{
 			json: { ...(job ?? { exportJobId: jobId }), fileName, fileSizeBytes: buffer.length },
-			binary: { [binaryPropertyName]: binary },
+			binary: binaryData,
 			pairedItem: { item: i },
 		},
 	];
@@ -124,7 +171,7 @@ export async function executeExport(
 		if (status === 'failed') {
 			const error = (job.error ?? {}) as IDataObject;
 			throw new Error(
-				`Export failed${error.fallback ? `: ${String(error.fallback)}` : ''} (job ${jobId})`,
+				`Export failed${error.fallback ? `: ${String(error.fallback).slice(0, 500)}` : ''} (job ${jobId})`,
 			);
 		}
 		const remaining = deadline - Date.now();

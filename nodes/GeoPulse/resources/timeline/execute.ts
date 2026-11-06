@@ -36,7 +36,7 @@ async function regenerate(this: IExecuteFunctions, i: number): Promise<INodeExec
 		if (status === 'COMPLETED') return objectToItem({ ...job, jobId }, i);
 		if (status === 'FAILED') {
 			throw new Error(
-				`Timeline regeneration failed${job?.errorMessage ? `: ${String(job.errorMessage)}` : ''} (job ${jobId})`,
+				`Timeline regeneration failed${job?.errorMessage ? `: ${String(job.errorMessage).slice(0, 500)}` : ''} (job ${jobId})`,
 			);
 		}
 		if (job?.terminal === true) return objectToItem({ ...job, jobId }, i);

@@ -8,7 +8,16 @@ import type {
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
-import { API_PREFIX, MAX_PAGES, REQUEST_TIMEOUT_MS, normalizeBaseUrl, redact } from './security';
+import {
+	API_PREFIX,
+	DOWNLOAD_TIMEOUT_MS,
+	MAX_DOWNLOAD_BYTES,
+	MAX_JSON_BYTES,
+	MAX_PAGES,
+	REQUEST_TIMEOUT_MS,
+	normalizeBaseUrl,
+	redact,
+} from './security';
 
 export const CREDENTIAL_NAME = 'geoPulseApi';
 
@@ -92,10 +101,23 @@ function parseBody(body: unknown): unknown {
 }
 
 function describeNetworkError(error: unknown): string {
-	const err = (error ?? {}) as { code?: unknown; message?: unknown };
+	const err = (error ?? {}) as { code?: unknown; message?: unknown; name?: unknown };
 	const code = typeof err.code === 'string' ? err.code : '';
-	if (code === 'ECONNABORTED' || code === 'ETIMEDOUT' || /timeout/i.test(String(err.message))) {
-		return `GeoPulse did not answer within ${REQUEST_TIMEOUT_MS / 1000} seconds`;
+	if (
+		code === 'ECONNABORTED' ||
+		code === 'ETIMEDOUT' ||
+		code === 'ERR_CANCELED' ||
+		err.name === 'AbortError' ||
+		err.name === 'TimeoutError' ||
+		/timeout|aborted|canceled/i.test(String(err.message))
+	) {
+		return `GeoPulse did not complete the request in time (${REQUEST_TIMEOUT_MS / 1000} s, ${DOWNLOAD_TIMEOUT_MS / 60_000} min for export downloads)`;
+	}
+	if (
+		code === 'ERR_FR_MAX_BODY_LENGTH_EXCEEDED' ||
+		/maxContentLength|max.*bytes|too large/i.test(String(err.message))
+	) {
+		return 'The GeoPulse response is too large';
 	}
 	if (code === 'ECONNREFUSED')
 		return 'Connection to GeoPulse refused: check the Base URL and that the server is running';
@@ -121,7 +143,10 @@ export function apiError(
 		body && typeof body === 'object' && !Array.isArray(body) ? body : {}
 	) as IDataObject;
 	const parameters = (problem.parameters ?? {}) as IDataObject;
-	const code = typeof problem.code === 'string' ? problem.code : undefined;
+	const code =
+		typeof problem.code === 'string' && /^[A-Z0-9_]{1,80}$/.test(problem.code)
+			? problem.code
+			: undefined;
 	const rawDetail =
 		problem.detail ??
 		problem.message ??
@@ -137,8 +162,13 @@ export function apiError(
 		message =
 			'GeoPulse rejected the API token (401): check that it is correct and not expired or revoked';
 	} else if (statusCode === 403 && code === 'API_TOKEN_SCOPE_REQUIRED') {
-		const scope =
-			problem.requiredScope ?? parameters.requiredScope ?? headers['x-geopulse-required-scope'];
+		const rawScope = String(
+			problem.requiredScope ??
+				parameters.requiredScope ??
+				headers['x-geopulse-required-scope'] ??
+				'',
+		);
+		const scope = /^[a-z:_-]{1,40}$/i.test(rawScope) ? rawScope : '';
 		message = scope
 			? `The API token is missing the '${String(scope)}' scope required for this operation. Create a token with the '${String(scope)}' scope in GeoPulse (Menu → Profile → Security → API tokens)`
 			: 'The API token does not have the scope required for this operation';
@@ -151,8 +181,10 @@ export function apiError(
 	}
 
 	const ids = [
-		typeof problem.errorId === 'string' ? `errorId ${problem.errorId}` : undefined,
-		typeof problem.requestId === 'string' ? `requestId ${problem.requestId}` : undefined,
+		typeof problem.errorId === 'string' ? `errorId ${problem.errorId.slice(0, 80)}` : undefined,
+		typeof problem.requestId === 'string'
+			? `requestId ${problem.requestId.slice(0, 80)}`
+			: undefined,
 	].filter(Boolean);
 	return new NodeOperationError(node, redact(message, secrets), {
 		description: ids.length ? redact(ids.join(', '), secrets) : undefined,
@@ -179,7 +211,11 @@ export async function geoPulseRequest(
 		method: request.method,
 		url: `${baseUrl}${request.path}`,
 		headers: { Accept: request.binary ? '*/*' : 'application/json' },
+		// `timeout` stops a silent connection; the abort signal bounds the whole request, so a
+		// server that trickles the body cannot keep the execution alive.
 		timeout: REQUEST_TIMEOUT_MS,
+		abortSignal: AbortSignal.timeout(request.binary ? DOWNLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+		maxResponseBodyBytes: request.binary ? MAX_DOWNLOAD_BYTES : MAX_JSON_BYTES,
 		disableFollowRedirect: true,
 		maxRedirects: 0,
 		sendCredentialsOnCrossOriginRedirect: false,
@@ -191,6 +227,7 @@ export async function geoPulseRequest(
 	if (request.qs) {
 		const qs: IDataObject = {};
 		for (const [key, value] of Object.entries(request.qs)) {
+			if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
 			if (value !== undefined && value !== null && value !== '') qs[key] = value;
 		}
 		if (Object.keys(qs).length) options.qs = qs;
@@ -274,6 +311,9 @@ export async function geoPulsePaginate(
 	options: { returnAll: boolean; limit: number; maxPageSize: number },
 ): Promise<IDataObject[]> {
 	const node = ctx.getNode();
+	if (!options.returnAll && (!Number.isSafeInteger(options.limit) || options.limit < 1)) {
+		throw new NodeOperationError(node, 'Limit must be a whole number greater than 0');
+	}
 	const pageSize = options.returnAll
 		? options.maxPageSize
 		: Math.max(1, Math.min(options.maxPageSize, options.limit));
