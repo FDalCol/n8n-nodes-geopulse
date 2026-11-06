@@ -1,5 +1,30 @@
+# Build output and dependencies
 dist
 node_modules
 coverage
 *.tgz
 *.tsbuildinfo
+
+# Local files
+.env
+.env.*
+.vscode/
+.idea/
+*.local
+
+# Logs and caches
+*.log
+npm-debug.log*
+.npm/
+.eslintcache
+.cache/
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.swp

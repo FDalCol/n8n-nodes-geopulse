@@ -131,8 +131,8 @@ describe('credential authenticate()', () => {
 describe('security helpers', () => {
 	it('normalizes the Base URL', () => {
 		expect(normalizeBaseUrl(' https://geo.example/// ')).toBe('https://geo.example');
-		expect(normalizeBaseUrl('http://10.0.0.5:8080/geopulse/')).toBe(
-			'http://10.0.0.5:8080/geopulse',
+		expect(normalizeBaseUrl('http://192.0.2.10:8080/geopulse/')).toBe(
+			'http://192.0.2.10:8080/geopulse',
 		);
 		expect(() => normalizeBaseUrl('javascript:alert(1)')).toThrow();
 		expect(() => normalizeBaseUrl('https://a:b@geo.example')).toThrow(/username/);

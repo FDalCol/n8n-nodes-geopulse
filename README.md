@@ -17,11 +17,16 @@ In n8n, open **Settings → Community Nodes → Install** and enter `n8n-nodes-g
 
 ### Manual installation (Docker)
 
-1. Copy the package file (`n8n-nodes-geopulse-0.1.0.tgz`) into the container.
+1. Copy the package file into the container (here named `n8n`):
+
+```bash
+docker cp n8n-nodes-geopulse-0.1.0.tgz n8n:/tmp/
+```
+
 2. Install it in `~/.n8n/nodes`:
 
 ```bash
-docker exec -it n8n sh -c "mkdir -p ~/.n8n/nodes && cd ~/.n8n/nodes && npm install --legacy-peer-deps /path/to/n8n-nodes-geopulse-0.1.0.tgz"
+docker exec -it n8n sh -c "mkdir -p ~/.n8n/nodes && cd ~/.n8n/nodes && npm install --legacy-peer-deps /tmp/n8n-nodes-geopulse-0.1.0.tgz"
 ```
 
 3. Restart n8n:
