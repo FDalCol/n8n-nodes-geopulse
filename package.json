@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-geopulse",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "n8n community node for GeoPulse, the self-hosted location timeline: GPS points, timeline, ingestion, exports, sharing and a polling trigger.",
 	"license": "MIT",
 	"homepage": "https://github.com/FDalCol/n8n-nodes-geopulse",

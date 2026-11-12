@@ -1,5 +1,9 @@
 # n8n-nodes-geopulse
 
+[![npm version](https://img.shields.io/npm/v/n8n-nodes-geopulse.svg)](https://www.npmjs.com/package/n8n-nodes-geopulse)
+[![npm downloads](https://img.shields.io/npm/dm/n8n-nodes-geopulse.svg)](https://www.npmjs.com/package/n8n-nodes-geopulse)
+[![license](https://img.shields.io/npm/l/n8n-nodes-geopulse.svg)](./LICENSE)
+
 n8n community nodes for [GeoPulse](https://github.com/tess1o/geopulse), the self-hosted location timeline:
 
 - **GeoPulse**: GPS points, timeline, statistics, location ingestion, exports, share links, friends, profile and custom API calls. Usable as an AI agent tool.
@@ -20,13 +24,13 @@ In n8n, open **Settings → Community Nodes → Install** and enter `n8n-nodes-g
 1. Copy the package file into the container (here named `n8n`):
 
 ```bash
-docker cp n8n-nodes-geopulse-0.1.0.tgz n8n:/tmp/
+docker cp n8n-nodes-geopulse-0.1.1.tgz n8n:/tmp/
 ```
 
 2. Install it in `~/.n8n/nodes`:
 
 ```bash
-docker exec -it n8n sh -c "mkdir -p ~/.n8n/nodes && cd ~/.n8n/nodes && npm install --legacy-peer-deps /tmp/n8n-nodes-geopulse-0.1.0.tgz"
+docker exec -it n8n sh -c "mkdir -p ~/.n8n/nodes && cd ~/.n8n/nodes && npm install --legacy-peer-deps /tmp/n8n-nodes-geopulse-0.1.1.tgz"
 ```
 
 3. Restart n8n:
